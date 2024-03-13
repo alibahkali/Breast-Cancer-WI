@@ -19,6 +19,9 @@ p_load(lme4, rsq, MuMIn, optimx, MASS, dplyr, ggplot2, HLMdiag, lmtest, lmerTest
        psy, PowerUpR, nlme, MVN, skimr, tidyverse, lavaan, semTools, gsl, graphics, psych, GPArotation)
 
 #------------------------------------------------------------------------------
+
+Cancer.export <- read.csv("https://raw.github.com//alibahkali/Breast-Cancer-WI/blob/main/Cancer-export.csv")
+
 Cancer.Data <- Cancer.export[Cancer.export$YEAR %in% c("2006-2010", "2010-2014", 
                                                        "2012-2016", "2014-2018", 
                                                        "2016-2020"),]
