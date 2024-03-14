@@ -18,14 +18,25 @@ library(pacman)
 p_load(lme4, rsq, MuMIn, optimx, MASS, dplyr, ggplot2, HLMdiag, lmtest, lmerTest, 
        psy, PowerUpR, nlme, MVN, skimr, tidyverse, lavaan, semTools, gsl, graphics, psych, GPArotation)
 
-#------------------------------------------------------------------------------
+#--------------------------Import Data------------------------------------------
 
-Cancer.export <- read.csv("https://raw.github.com//alibahkali/Breast-Cancer-WI/blob/main/Cancer-export.csv")
+Cancer.WI <- read.csv("https://raw.githubusercontent.com/alibahkali/Breast-Cancer-WI/main/Cancer-export.csv")
 
-Cancer.Data <- Cancer.export[Cancer.export$YEAR %in% c("2006-2010", "2010-2014", 
-                                                       "2012-2016", "2014-2018", 
-                                                       "2016-2020"),]
+Household.composition.disability.percentile.rank <- read.csv("https://raw.githubusercontent.com/alibahkali/Breast-Cancer-WI/main/Household%20composition-disability%20percentile%20rank.csv")
 
+Housing.transportation.percentile.rank <- read.csv("https://raw.githubusercontent.com/alibahkali/Breast-Cancer-WI/main/Housing-transportation%20percentile%20rank.csv")
+
+Minority.status.language.percentile.rank <- read.csv("https://raw.githubusercontent.com/alibahkali/Breast-Cancer-WI/main/Minority%20status-language%20percentile%20rank.csv")
+
+Overall.percentile.vulnerability.rank <- read.csv("https://raw.githubusercontent.com/alibahkali/Breast-Cancer-WI/main/Overall%20percentile%20vulnerability%20rank.csv")
+
+Socioeconomic.percentile.vulnerability.rank <- read.csv("https://raw.githubusercontent.com/alibahkali/Breast-Cancer-WI/main/Socioeconomic%20percentile%20vulnerability%20rank.csv")
+
+
+#--------------------------Process Data  --------------------------------------
+Cancer.Data <- Cancer.WI[Cancer.WI$YEAR %in% c("2006-2010", "2010-2014", 
+                                               "2012-2016", "2014-2018", 
+                                               "2016-2020"),]
 Cancer.Data <- Cancer.Data %>%
   mutate(YEAR = case_when(
     YEAR == "2006-2010" ~ "2010",
@@ -42,7 +53,7 @@ columns <- c("COUNTS", "AADJ_RATE", "LOWR_LIM", "UPPR_LIM", "STD_ERR")
 
 # Function to calculate mean excluding -5
 calculate_mean_excluding_neg5 <- function(column_name) {
-  values <- Cancer.export[[column_name]][Cancer.export$COUNTY == "Menominee"]
+  values <- Cancer.WI[[column_name]][Cancer.WI$COUNTY == "Menominee"]
   filtered_values <- values[values != -5]
   mean(filtered_values, na.rm = TRUE)
 }
@@ -137,22 +148,21 @@ Minority.status.language.percentile.rank$MSLPR_standardized_quantiles <- cut(Min
 Overall.percentile.vulnerability.rank$OPVR_standardized_quantiles <- cut(Overall.percentile.vulnerability.rank$OPVR_standardized, breaks = quantile(Overall.percentile.vulnerability.rank$OPVR_standardized, probs = 0:4/4), include.lowest = TRUE, labels = FALSE)
 Socioeconomic.percentile.vulnerability.rank$SPVR_standardized_quantiles <- cut(Socioeconomic.percentile.vulnerability.rank$SPVR_standardized, breaks = quantile(Socioeconomic.percentile.vulnerability.rank$SPVR_standardized, probs = 0:4/4), include.lowest = TRUE, labels = FALSE)
 
+#**************************Household.composition.disability.percentile.rank*******************************************************
+
+
 #===========================Merge, Diagnose, & Clean Outlier Data==========================================
-# Step 1: Ensure key columns are consistent
-# Convert to the same case if necessary (e.g., both to uppercase)
-#Household.composition.disability.percentile.rank$COUNTY <- toupper(Household.composition.disability.percentile.rank$COUNTY)
-#Cancer.Data$COUNTY <- toupper(Cancer.Data$COUNTY)
-# Ensure YEAR columns are of the same format and represent the same period
-# For simplicity, let's assume both datasets already align on this
 
 Household.composition.disability.percentile.rank <- as.data.frame(Household.composition.disability.percentile.rank)
 
 Cancer.Data <- as.data.frame(Cancer.Data)
+
 # Step 2: Merge the datasets
 merged_data <- merge(Household.composition.disability.percentile.rank, Cancer.Data, by = c("FIPS", "COUNTY", "YEAR"), all = TRUE)
 #------------------step in between-----------
 skim(merged_data)
 plot(density(merged_data$COUNTS))
+plot(density(merged_data$AADJ_RATE))
 
 # Calculate the 5th and 95th percentiles of the COUNTS variable
 percentile_5 <- quantile(merged_data$COUNTS, probs = 0.05, na.rm = TRUE)
@@ -161,10 +171,14 @@ percentile_95 <- quantile(merged_data$COUNTS, probs = 0.95, na.rm = TRUE)
 # Filter the dataset to only include values within these percentiles
 Quantiled_data <- merged_data[merged_data$COUNTS > percentile_5 & merged_data$COUNTS < percentile_95, ]
 skim(Quantiled_data)
+plot(density(Quantiled_data$COUNTS))
+plot(density(Quantiled_data$AADJ_RATE))
 
 #Transformation
 Log_Counts <- log(Quantiled_data$COUNTS)
 plot(density(Log_Counts))
+Log_AADJ_RATE <- log(Quantiled_data$AADJ_RATE)
+plot(density(Log_AADJ_RATE))
 #------------------------------------------
 # Step 3: Analysis and Comparison
 # For example, to compare the COUNTS between counties based on their HCDPR_standardized_quantiles
@@ -232,8 +246,6 @@ ggplot(summary_AADJ_RATE, aes(x = factor(HCDPR_standardized_quantiles), y = Mean
 anova_test <- aov(AADJ_RATE ~ factor(HCDPR_standardized_quantiles), data = data_2010)
 summary(anova_test)
 
-#===============================================================================
-
 #====================2014===========================================================
 # Filter for the year 2014
 data_2014 <- merged_data %>% 
@@ -287,7 +299,6 @@ ggplot(summary_AADJ_RATE, aes(x = factor(HCDPR_standardized_quantiles), y = Mean
 
 anova_test <- aov(AADJ_RATE ~ factor(HCDPR_standardized_quantiles), data = data_2014)
 summary(anova_test)
-
 
 #====================2016===========================================================
 # Filter for the year 2016
@@ -453,7 +464,7 @@ anova_test <- aov(AADJ_RATE ~ factor(HCDPR_standardized_quantiles), data = data_
 summary(anova_test)
 
 
-#====================ALL===========================================================
+#====================ALL YEARS===========================================================
 # Group by quantiles and summarize COUNTS
 summary_counts <- merged_data %>%
   group_by(HCDPR_standardized_quantiles) %>%
@@ -489,6 +500,9 @@ ggplot(summary_counts, aes(x = factor(HCDPR_standardized_quantiles), y = Mean_CO
 anova_test <- aov(COUNTS ~ factor(HCDPR_standardized_quantiles), data = merged_data)
 summary(anova_test)
 
+lmer.model <- lmer(COUNTS ~ YEAR + (1|HCDPR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
 #===================================AADJ_RATE============================================
 ggplot(merged_data, aes(x = factor(HCDPR_standardized_quantiles), y = AADJ_RATE)) +
   geom_boxplot() +
@@ -503,5 +517,1495 @@ ggplot(summary_AADJ_RATE, aes(x = factor(HCDPR_standardized_quantiles), y = Mean
 anova_test <- aov(AADJ_RATE ~ factor(HCDPR_standardized_quantiles), data = merged_data)
 summary(anova_test)
 
+lmer.model <- lmer(AADJ_RATE ~ YEAR + (1|HCDPR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
 
+#===============================================================================
+
+yearly_trend <- merged_data %>%
+  group_by(YEAR) %>%
+  summarise(mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE))
+
+# Now plot this pre-summarized data
+ggplot(yearly_trend, aes(x = YEAR, y = mean_AADJ_RATE)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Overall Yearly Trend of BC Incidence Rates",
+       x = "Year",
+       y = "Mean Adjusted Rate of BC Incidence")
+
+
+quantile_trend <- merged_data %>%
+  group_by(YEAR, HCDPR_standardized_quantiles) %>%
+  summarise(mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE))
+
+# Now plot this pre-summarized data
+ggplot(quantile_trend, aes(x = YEAR, y = mean_AADJ_RATE, color = as.factor(HCDPR_standardized_quantiles))) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Yearly Trend of BC Incidence Rates by Quantiles of Household composition & disability",
+       x = "Year",
+       y = "Mean Adjusted Rate of BC Incidence",
+       color = "Quantiles of Household composition & disability")
+
+
+
+#===============================================================================
+
+#**************************Housing.transportation.percentile.rank*******************************************************
+
+
+#===========================Merge, Diagnose, & Clean Outlier Data==========================================
+
+merged_data <- merge(Housing.transportation.percentile.rank, Cancer.Data, by = c("FIPS", "COUNTY", "YEAR"), all = TRUE)
+#------------------step in between-----------
+skim(merged_data)
+plot(density(merged_data$COUNTS))
+plot(density(merged_data$AADJ_RATE))
+
+# Calculate the 5th and 95th percentiles of the COUNTS variable
+percentile_5 <- quantile(merged_data$COUNTS, probs = 0.05, na.rm = TRUE)
+percentile_95 <- quantile(merged_data$COUNTS, probs = 0.95, na.rm = TRUE)
+
+# Filter the dataset to only include values within these percentiles
+Quantiled_data <- merged_data[merged_data$COUNTS > percentile_5 & merged_data$COUNTS < percentile_95, ]
+skim(Quantiled_data)
+plot(density(Quantiled_data$COUNTS))
+plot(density(Quantiled_data$AADJ_RATE))
+
+#Transformation
+Log_Counts <- log(Quantiled_data$COUNTS)
+plot(density(Log_Counts))
+Log_AADJ_RATE <- log(Quantiled_data$AADJ_RATE)
+plot(density(Log_AADJ_RATE))
+#------------------------------------------
+# Step 3: Analysis and Comparison
+# For example, to compare the COUNTS between counties based on their HTPR_standardized_quantiles
+comparison <- merged_data %>%
+  group_by(HTPR_standardized_quantiles, COUNTY) %>%
+  summarize(Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+            Median_COUNTS = median(COUNTS, na.rm = TRUE),
+            Quantile_COUNTS = quantile(COUNTS, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)) %>%
+  arrange(HTPR_standardized_quantiles, Mean_COUNTS)
+
+#====================2010===========================================================
+# Filter for the year 2010
+data_2010 <- merged_data %>% 
+  filter(YEAR == "2010" | YEAR == 2010) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2010 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2010 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2010, aes(x = factor(HTPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(HTPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(HTPR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#===================================AADJ_RATE===================================
+ggplot(data_2010, aes(x = factor(HTPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(HTPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(HTPR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#====================2014===========================================================
+# Filter for the year 2014
+data_2014 <- merged_data %>% 
+  filter(YEAR == "2014" | YEAR == 2014) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2014 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2014 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2014, aes(x = factor(HTPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(HTPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(HTPR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2014, aes(x = factor(HTPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(HTPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(HTPR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#====================2016===========================================================
+# Filter for the year 2016
+data_2016 <- merged_data %>% 
+  filter(YEAR == "2016" | YEAR == 2016) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2016 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2016 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2016, aes(x = factor(HTPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(HTPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(HTPR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2016, aes(x = factor(HTPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(HTPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(HTPR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#====================2018===========================================================
+# Filter for the year 2018
+data_2018 <- merged_data %>% 
+  filter(YEAR == "2018" | YEAR == 2018) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2018 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2018 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2018, aes(x = factor(HTPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(HTPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(HTPR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2018, aes(x = factor(HTPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(HTPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(HTPR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+
+#====================2020===========================================================
+# Filter for the year 2020
+data_2020 <- merged_data %>% 
+  filter(YEAR == "2020" | YEAR == 2020) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2020 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2020 %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2020, aes(x = factor(HTPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(HTPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(HTPR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2020, aes(x = factor(HTPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(HTPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(HTPR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+
+#====================ALL YEARS===========================================================
+# Group by quantiles and summarize COUNTS
+summary_counts <- merged_data %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- merged_data %>%
+  group_by(HTPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(merged_data, aes(x = factor(HTPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(HTPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(HTPR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(COUNTS ~ YEAR + (1|HTPR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+#===================================AADJ_RATE============================================
+ggplot(merged_data, aes(x = factor(HTPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(HTPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(HTPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(HTPR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(AADJ_RATE ~ YEAR + (1|HTPR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+#**************************Minority.status.language.percentile.rank*******************************************************
+
+
+#===========================Merge, Diagnose, & Clean Outlier Data==========================================
+
+merged_data <- merge(Minority.status.language.percentile.rank, Cancer.Data, by = c("FIPS", "COUNTY", "YEAR"), all = TRUE)
+#------------------step in between-----------
+skim(merged_data)
+plot(density(merged_data$COUNTS))
+plot(density(merged_data$AADJ_RATE))
+
+# Calculate the 5th and 95th percentiles of the COUNTS variable
+percentile_5 <- quantile(merged_data$COUNTS, probs = 0.05, na.rm = TRUE)
+percentile_95 <- quantile(merged_data$COUNTS, probs = 0.95, na.rm = TRUE)
+
+# Filter the dataset to only include values within these percentiles
+Quantiled_data <- merged_data[merged_data$COUNTS > percentile_5 & merged_data$COUNTS < percentile_95, ]
+skim(Quantiled_data)
+plot(density(Quantiled_data$COUNTS))
+plot(density(Quantiled_data$AADJ_RATE))
+
+#Transformation
+Log_Counts <- log(Quantiled_data$COUNTS)
+plot(density(Log_Counts))
+Log_AADJ_RATE <- log(Quantiled_data$AADJ_RATE)
+plot(density(Log_AADJ_RATE))
+#------------------------------------------
+# Step 3: Analysis and Comparison
+# For example, to compare the COUNTS between counties based on their MSLPR_standardized_quantiles
+comparison <- merged_data %>%
+  group_by(MSLPR_standardized_quantiles, COUNTY) %>%
+  summarize(Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+            Median_COUNTS = median(COUNTS, na.rm = TRUE),
+            Quantile_COUNTS = quantile(COUNTS, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)) %>%
+  arrange(MSLPR_standardized_quantiles, Mean_COUNTS)
+
+#====================2010===========================================================
+# Filter for the year 2010
+data_2010 <- merged_data %>% 
+  filter(YEAR == "2010" | YEAR == 2010) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2010 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2010 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2010, aes(x = factor(MSLPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(MSLPR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#===================================AADJ_RATE===================================
+ggplot(data_2010, aes(x = factor(MSLPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(MSLPR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#====================2014===========================================================
+# Filter for the year 2014
+data_2014 <- merged_data %>% 
+  filter(YEAR == "2014" | YEAR == 2014) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2014 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2014 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2014, aes(x = factor(MSLPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(MSLPR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2014, aes(x = factor(MSLPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(MSLPR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#====================2016===========================================================
+# Filter for the year 2016
+data_2016 <- merged_data %>% 
+  filter(YEAR == "2016" | YEAR == 2016) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2016 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2016 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2016, aes(x = factor(MSLPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(MSLPR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2016, aes(x = factor(MSLPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(MSLPR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#====================2018===========================================================
+# Filter for the year 2018
+data_2018 <- merged_data %>% 
+  filter(YEAR == "2018" | YEAR == 2018) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2018 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2018 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2018, aes(x = factor(MSLPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(MSLPR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2018, aes(x = factor(MSLPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(MSLPR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+
+#====================2020===========================================================
+# Filter for the year 2020
+data_2020 <- merged_data %>% 
+  filter(YEAR == "2020" | YEAR == 2020) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2020 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2020 %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2020, aes(x = factor(MSLPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(MSLPR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2020, aes(x = factor(MSLPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(MSLPR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+
+#====================ALL YEARS===========================================================
+# Group by quantiles and summarize COUNTS
+summary_counts <- merged_data %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- merged_data %>%
+  group_by(MSLPR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(merged_data, aes(x = factor(MSLPR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_COUNTS, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(MSLPR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(COUNTS ~ YEAR + (1|MSLPR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+#===================================AADJ_RATE============================================
+ggplot(merged_data, aes(x = factor(MSLPR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(MSLPR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(MSLPR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(MSLPR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(AADJ_RATE ~ YEAR + (1|MSLPR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+
+#**************************Socioeconomic.percentile.vulnerability.rank*******************************************************
+
+
+#===========================Merge, Diagnose, & Clean Outlier Data==========================================
+
+merged_data <- merge(Socioeconomic.percentile.vulnerability.rank, Cancer.Data, by = c("FIPS", "COUNTY", "YEAR"), all = TRUE)
+#------------------step in between-----------
+skim(merged_data)
+plot(density(merged_data$COUNTS))
+plot(density(merged_data$AADJ_RATE))
+
+# Calculate the 5th and 95th percentiles of the COUNTS variable
+percentile_5 <- quantile(merged_data$COUNTS, probs = 0.05, na.rm = TRUE)
+percentile_95 <- quantile(merged_data$COUNTS, probs = 0.95, na.rm = TRUE)
+
+# Filter the dataset to only include values within these percentiles
+Quantiled_data <- merged_data[merged_data$COUNTS > percentile_5 & merged_data$COUNTS < percentile_95, ]
+skim(Quantiled_data)
+plot(density(Quantiled_data$COUNTS))
+plot(density(Quantiled_data$AADJ_RATE))
+
+#Transformation
+Log_Counts <- log(Quantiled_data$COUNTS)
+plot(density(Log_Counts))
+Log_AADJ_RATE <- log(Quantiled_data$AADJ_RATE)
+plot(density(Log_AADJ_RATE))
+#------------------------------------------
+# Step 3: Analysis and Comparison
+# For example, to compare the COUNTS between counties based on their SPVR_standardized_quantiles
+comparison <- merged_data %>%
+  group_by(SPVR_standardized_quantiles, COUNTY) %>%
+  summarize(Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+            Median_COUNTS = median(COUNTS, na.rm = TRUE),
+            Quantile_COUNTS = quantile(COUNTS, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)) %>%
+  arrange(SPVR_standardized_quantiles, Mean_COUNTS)
+
+#====================2010===========================================================
+# Filter for the year 2010
+data_2010 <- merged_data %>% 
+  filter(YEAR == "2010" | YEAR == 2010) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2010 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2010 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2010, aes(x = factor(SPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(SPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(SPVR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#===================================AADJ_RATE===================================
+ggplot(data_2010, aes(x = factor(SPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(SPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(SPVR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#====================2014===========================================================
+# Filter for the year 2014
+data_2014 <- merged_data %>% 
+  filter(YEAR == "2014" | YEAR == 2014) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2014 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2014 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2014, aes(x = factor(SPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(SPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(SPVR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2014, aes(x = factor(SPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(SPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(SPVR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#====================2016===========================================================
+# Filter for the year 2016
+data_2016 <- merged_data %>% 
+  filter(YEAR == "2016" | YEAR == 2016) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2016 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2016 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2016, aes(x = factor(SPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(SPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(SPVR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2016, aes(x = factor(SPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(SPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(SPVR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#====================2018===========================================================
+# Filter for the year 2018
+data_2018 <- merged_data %>% 
+  filter(YEAR == "2018" | YEAR == 2018) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2018 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2018 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2018, aes(x = factor(SPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(SPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(SPVR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2018, aes(x = factor(SPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(SPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(SPVR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+
+#====================2020===========================================================
+# Filter for the year 2020
+data_2020 <- merged_data %>% 
+  filter(YEAR == "2020" | YEAR == 2020) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2020 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2020 %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2020, aes(x = factor(SPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(SPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(SPVR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2020, aes(x = factor(SPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(SPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(SPVR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+
+#====================ALL YEARS===========================================================
+# Group by quantiles and summarize COUNTS
+summary_counts <- merged_data %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- merged_data %>%
+  group_by(SPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(merged_data, aes(x = factor(SPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(SPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(SPVR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(COUNTS ~ YEAR + (1|SPVR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+#===================================AADJ_RATE============================================
+ggplot(merged_data, aes(x = factor(SPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(SPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(SPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(SPVR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(AADJ_RATE ~ YEAR + (1|SPVR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+#**************************Overall.percentile.vulnerability.rank*******************************************************
+
+
+#===========================Merge, Diagnose, & Clean Outlier Data==========================================
+
+merged_data <- merge(Overall.percentile.vulnerability.rank, Cancer.Data, by = c("FIPS", "COUNTY", "YEAR"), all = TRUE)
+#------------------step in between-----------
+skim(merged_data)
+plot(density(merged_data$COUNTS))
+plot(density(merged_data$AADJ_RATE))
+
+# Calculate the 5th and 95th percentiles of the COUNTS variable
+percentile_5 <- quantile(merged_data$COUNTS, probs = 0.05, na.rm = TRUE)
+percentile_95 <- quantile(merged_data$COUNTS, probs = 0.95, na.rm = TRUE)
+
+# Filter the dataset to only include values within these percentiles
+Quantiled_data <- merged_data[merged_data$COUNTS > percentile_5 & merged_data$COUNTS < percentile_95, ]
+skim(Quantiled_data)
+plot(density(Quantiled_data$COUNTS))
+plot(density(Quantiled_data$AADJ_RATE))
+
+#Transformation
+Log_Counts <- log(Quantiled_data$COUNTS)
+plot(density(Log_Counts))
+Log_AADJ_RATE <- log(Quantiled_data$AADJ_RATE)
+plot(density(Log_AADJ_RATE))
+#------------------------------------------
+# Step 3: Analysis and Comparison
+# For example, to compare the COUNTS between counties based on their OPVR_standardized_quantiles
+comparison <- merged_data %>%
+  group_by(OPVR_standardized_quantiles, COUNTY) %>%
+  summarize(Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+            Median_COUNTS = median(COUNTS, na.rm = TRUE),
+            Quantile_COUNTS = quantile(COUNTS, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)) %>%
+  arrange(OPVR_standardized_quantiles, Mean_COUNTS)
+
+#====================2010===========================================================
+# Filter for the year 2010
+data_2010 <- merged_data %>% 
+  filter(YEAR == "2010" | YEAR == 2010) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2010 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2010 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2010, aes(x = factor(OPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(OPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(OPVR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#===================================AADJ_RATE===================================
+ggplot(data_2010, aes(x = factor(OPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(OPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2010") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(OPVR_standardized_quantiles), data = data_2010)
+summary(anova_test)
+
+#====================2014===========================================================
+# Filter for the year 2014
+data_2014 <- merged_data %>% 
+  filter(YEAR == "2014" | YEAR == 2014) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2014 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2014 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2014, aes(x = factor(OPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(OPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(OPVR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2014, aes(x = factor(OPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(OPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2014") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(OPVR_standardized_quantiles), data = data_2014)
+summary(anova_test)
+
+#====================2016===========================================================
+# Filter for the year 2016
+data_2016 <- merged_data %>% 
+  filter(YEAR == "2016" | YEAR == 2016) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2016 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2016 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2016, aes(x = factor(OPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(OPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(OPVR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2016, aes(x = factor(OPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(OPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2016") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(OPVR_standardized_quantiles), data = data_2016)
+summary(anova_test)
+
+#====================2018===========================================================
+# Filter for the year 2018
+data_2018 <- merged_data %>% 
+  filter(YEAR == "2018" | YEAR == 2018) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2018 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2018 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2018, aes(x = factor(OPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(OPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(OPVR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2018, aes(x = factor(OPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(OPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2018") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(OPVR_standardized_quantiles), data = data_2018)
+summary(anova_test)
+
+
+#====================2020===========================================================
+# Filter for the year 2020
+data_2020 <- merged_data %>% 
+  filter(YEAR == "2020" | YEAR == 2020) # Adjust based on whether YEAR is character or numeric
+
+# Group by quantiles and summarize COUNTS
+summary_counts <- data_2020 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- data_2020 %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(data_2020, aes(x = factor(OPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(OPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(OPVR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+#===================================AADJ_RATE============================================
+ggplot(data_2020, aes(x = factor(OPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(OPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile in 2020") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(OPVR_standardized_quantiles), data = data_2020)
+summary(anova_test)
+
+
+#====================ALL YEARS===========================================================
+# Group by quantiles and summarize COUNTS
+summary_counts <- merged_data %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_COUNTS = mean(COUNTS, na.rm = TRUE),
+    Median_COUNTS = median(COUNTS, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_counts)
+
+
+summary_AADJ_RATE <- merged_data %>%
+  group_by(OPVR_standardized_quantiles) %>%
+  summarize(
+    Mean_AADJ_RATE = mean(AADJ_RATE, na.rm = TRUE),
+    Median_AADJ_RATE = median(AADJ_RATE, na.rm = TRUE),
+    Count = n()
+  )
+print (summary_AADJ_RATE)
+
+#===================================COUNTS============================================
+ggplot(merged_data, aes(x = factor(OPVR_standardized_quantiles), y = COUNTS)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "COUNTS", title = "COUNTS by Quantile") +
+  theme_minimal()
+
+ggplot(summary_counts, aes(x = factor(OPVR_standardized_quantiles), y = Mean_COUNTS, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean COUNTS", title = "Mean COUNTS by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(COUNTS ~ factor(OPVR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(COUNTS ~ YEAR + (1|OPVR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
+
+#===================================AADJ_RATE============================================
+ggplot(merged_data, aes(x = factor(OPVR_standardized_quantiles), y = AADJ_RATE)) +
+  geom_boxplot() +
+  labs(x = "Quantile", y = "AADJ_RATE", title = "AADJ_RATE by Quantile") +
+  theme_minimal()
+
+ggplot(summary_AADJ_RATE, aes(x = factor(OPVR_standardized_quantiles), y = Mean_AADJ_RATE, fill = factor(OPVR_standardized_quantiles))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Quantile", y = "Mean AADJ_RATE", title = "Mean AADJ_RATE by Quantile") +
+  theme_minimal()
+
+anova_test <- aov(AADJ_RATE ~ factor(OPVR_standardized_quantiles), data = merged_data)
+summary(anova_test)
+
+lmer.model <- lmer(AADJ_RATE ~ YEAR + (1|OPVR_standardized_quantiles), data = merged_data)
+summary(lmer.model)
 
